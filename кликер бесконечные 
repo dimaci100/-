@@ -348,7 +348,7 @@
       }, 3000);
     }
 
-    // Запуск
+    //
     window.onload = loadGame;
     window.onbeforeunload = saveGame;
   </script>
