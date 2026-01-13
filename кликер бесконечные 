@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Кликер</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #222;
+      color: white;
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+    }
+    #clicker {
+      width: 150px;
+      height: 150px;
+      background: red;
+      border-radius: 50%;
+      margin: 20px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+    }
+    #score {
+      font-size: 40px;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .upgrade {
+      background: #333;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    table {
+      width: 100%;
+      margin-top: 30px;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #444;
+    }
+    th {
+      background: #333;
+    }
+    input {
+      padding: 8px;
+      width: 100%;
+      margin: 10px 0;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .empty-message {
+      text-align: center;
+      color: #888;
+      padding: 20px;
+    }
+    .currency-info {
+      text-align: center;
+      color: #4CAF50;
+      margin-bottom: 10px;
+    }
+    .save-notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #4CAF50;
+      padding: 10px 15px;
+      border-radius: 5px;
+      animation: fadeIn 0.3s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <h2>Бесконечный кликер</h2>
+  <div id="score">0</div>
+  <div class="currency-info">Клик = <span id="click-value">1</span> | В секунду = <span id="cps-display">0</span></div>
+  <div id="clicker">КЛИК!</div>
+  <div id="upgrades"></div>
+  
+  <h3>Таблица лидеров</h3>
+  <input type="text" id="name" placeholder="Ваше имя">
+  <button onclick="saveScore()">Сохранить результат</button>
+  <table id="leaderboard">
+    <thead>
+      <tr><th>Место</th><th>Имя</th><th>Очки</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  
+  <div class="controls">
+    <button onclick="resetGame()">Новая игра</button>
+    <button onclick="clearLeaderboard()">Очистить таблицу</button>
+  </div>
+
+  <script>
+    // Игровые переменные
+    let score = 0;
+    let clickPower = 1;
+    let cps = 0;
+    let upgrades = [
+      {cost: 10, level: 0, cps: 1, name: "Автокликер"},
+      {cost: 50, level: 0, power: 2, name: "Усилитель"},
+      {cost: 200, level: 0, cps: 5, name: "Мега-кликер"},
+      {cost: 1000, level: 0, power: 10, name: "Супер-усилитель"}
+    ];
+
+    // Загрузка игры
+    function loadGame() {
+      const saved = localStorage.getItem('clickerSave');
+      if (saved) {
+        const data = JSON.parse(saved);
+        score = data.score || 0;
+        clickPower = data.clickPower || 1;
+        cps = data.cps || 0;
+        upgrades = data.upgrades || upgrades;
+      }
+      updateUI();
+      updateLeaderboard();
+      setInterval(() => { 
+        score += cps; 
+        updateUI(); 
+      }, 1000);
+    }
+
+    // Клик
+    document.getElementById('clicker').onclick = () => {
+      score += clickPower;
+      updateUI();
+      const btn = document.getElementById('clicker');
+      btn.style.transform = 'scale(0.95)';
+      setTimeout(() => btn.style.transform = 'scale(1)', 100);
+    };
+
+    // Покупка улучшения
+    function buyUpgrade(index) {
+      const up = upgrades[index];
+      if (score >= up.cost) {
+        score -= up.cost;
+        up.level++;
+        up.cost = Math.floor(up.cost * 1.5);
+        if (up.cps) cps += up.cps;
+        if (up.power) clickPower += up.power;
+        updateUI();
+        updateCurrencyInfo();
+        saveGame();
+      }
+    }
+
+    // Обновление интерфейса
+    function updateUI() {
+      document.getElementById('score').textContent = formatNumber(score);
+      
+      const container = document.getElementById('upgrades');
+      container.innerHTML = '';
+      
+      upgrades.forEach((up, i) => {
+        const div = document.createElement('div');
+        div.className = 'upgrade';
+        div.innerHTML = `
+          <div>
+            <strong>${up.name}</strong><br>
+            Уровень: ${up.level} | Стоимость: ${formatNumber(up.cost)}
+          </div>
+          <button onclick="buyUpgrade(${i})" ${score < up.cost ? 'disabled' : ''}>
+            Купить
+          </button>
+        `;
+        container.appendChild(div);
+      });
+      
+      updateCurrencyInfo();
+    }
+
+    // Обновление информации о валюте
+    function updateCurrencyInfo() {
+      document.getElementById('click-value').textContent = formatNumber(clickPower);
+      document.getElementById('cps-display').textContent = formatNumber(cps);
+    }
+
+    // Сохранение игры
+    function saveGame() {
+      const data = {
+        score, 
+        clickPower, 
+        cps, 
+        upgrades,
+        saveTime: Date.now()
+      };
+      localStorage.setItem('clickerSave', JSON.stringify(data));
+      showNotification('Игра сохранена!');
+    }
+
+    // Таблица лидеров
+    function updateLeaderboard() {
+      const board = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+      const tbody = document.querySelector('#leaderboard tbody');
+      tbody.innerHTML = '';
+      
+      if (board.length === 0) {
+        tbody.innerHTML = `
+          <tr><td colspan="3" class="empty-message">
+            Таблица лидеров пуста. Будьте первым!
+          </td></tr>
+        `;
+        return;
+      }
+      
+      // Сортируем по очкам
+      board.sort((a,b) => b.score - a.score);
+      
+      // Обновляем отображение с учетом текущего формата чисел
+      board.slice(0,10).forEach((player, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${player.name}</td>
+          <td>${formatNumber(player.score)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Сохранение результата с учетом текущих очков
+    function saveScore() {
+      const name = document.getElementById('name').value.trim();
+      if (!name) {
+        showNotification('Введите имя!');
+        return;
+      }
+      if (score < 1) {
+        showNotification('Наберите хотя бы 1 очко!');
+        return;
+      }
+      
+      const board = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+      
+      // Проверяем, есть ли уже игрок с таким именем
+      const existingIndex = board.findIndex(p => p.name === name);
+      
+      if (existingIndex >= 0) {
+        // Если новый результат лучше старого
+        if (score > board[existingIndex].score) {
+          board[existingIndex].score = score;
+          board[existingIndex].date = Date.now();
+          showNotification('Рекорд обновлен!');
+        } else {
+          showNotification('Ваш результат не побил рекорд.');
+          return;
+        }
+      } else {
+        // Добавляем нового игрока
+        board.push({
+          name,
+          score,
+          date: Date.now()
+        });
+        showNotification('Результат сохранен в таблице лидеров!');
+      }
+      
+      // Сортируем и сохраняем
+      board.sort((a,b) => b.score - a.score);
+      localStorage.setItem('leaderboard', JSON.stringify(board));
+      updateLeaderboard();
+    }
+
+    // Очистка таблицы лидеров
+    function clearLeaderboard() {
+      if (confirm('Очистить всю таблицу лидеров?')) {
+        localStorage.removeItem('leaderboard');
+        updateLeaderboard();
+        showNotification('Таблица лидеров очищена!');
+      }
+    }
+
+    // Новая игра
+    function resetGame() {
+      if (confirm('Начать новую игру? Текущий прогресс будет потерян.')) {
+        score = 0;
+        clickPower = 1;
+        cps = 0;
+        upgrades.forEach(u => {
+          u.level = 0;
+          u.cost = u.name === "Автокликер" ? 10 : 
+                   u.name === "Усилитель" ? 50 :
+                   u.name === "Мега-кликер" ? 200 : 1000;
+        });
+        updateUI();
+        saveGame();
+        showNotification('Новая игра начата!');
+      }
+    }
+
+    // Форматирование чисел (единое для всей игры)
+    function formatNumber(num) {
+      if (num >= 1000000000) return (num/1000000000).toFixed(2)+'B';
+      if (num >= 1000000) return (num/1000000).toFixed(2)+'M';
+      if (num >= 1000) return (num/1000).toFixed(2)+'K';
+      return Math.floor(num);
+    }
+
+    // Показать уведомление
+    function showNotification(message) {
+      // Удаляем старое уведомление
+      const oldNotification = document.querySelector('.save-notification');
+      if (oldNotification) oldNotification.remove();
+      
+      // Создаем новое
+      const notification = document.createElement('div');
+      notification.className = 'save-notification';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      
+      // Удаляем через 3 секунды
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.remove();
+        }
+      }, 3000);
+    }
+
+    // Запуск
+    window.onload = loadGame;
+    window.onbeforeunload = saveGame;
+  </script>
+</body>
+</html>
